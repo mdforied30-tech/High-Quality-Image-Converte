@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>High Quality Image Convert</title>
+<meta name="description" content="Free high quality image converter: JPG, PNG, WebP, SVG and EPS vector, plus AI upscale. Your photos never leave your device.">
+<meta name="theme-color" content="#6366f1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+    </div>
+    <div>
+      <h1>High Quality Image Convert</h1>
+      <p class="sub">Convert, vectorize and upscale. Free, and your photos never leave your device.</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>1. Choose tool</h2>
+    <div class="chips" id="tools">
+      <button class="chip active" data-tool="jpg2jpeg">JPG to JPEG</button>
+      <button class="chip" data-tool="png2jpg">PNG to JPG</button>
+      <button class="chip" data-tool="jpg2png">JPG to PNG</button>
+      <button class="chip" data-tool="jpg2webp">To WebP</button>
+      <button class="chip" data-tool="webp2jpg">WebP to JPG</button>
+      <button class="chip" data-tool="svg">PNG/JPG to SVG</button>
+      <button class="chip" data-tool="eps">PNG/JPG to EPS</button>
+      <button class="chip" data-tool="upscale">AI Upscale</button>
+    </div>
+  </section>
+
+  <section class="card" id="opts">
+    <h2>2. Options</h2>
+
+    <div class="row" data-for="convert">
+      <label>Quality <b id="qv">98</b>%</label>
+      <input type="range" id="quality" min="60" max="100" value="98">
+    </div>
+
+    <div class="row" data-for="vector">
+      <label>Colours <b id="cv">32</b></label>
+      <input type="range" id="colors" min="2" max="64" value="32">
+    </div>
+    <div class="row" data-for="vector">
+      <label>Detail <b id="dv">Balanced</b></label>
+      <select id="detail">
+        <option value="fine">Fine (large file)</option>
+        <option value="balanced" selected>Balanced</option>
+        <option value="smooth">Smooth (small file)</option>
+      </select>
+    </div>
+
+    <div class="row" data-for="upscale">
+      <label>Method</label>
+      <select id="method">
+        <option value="ai" selected>AI Upscale (best detail)</option>
+        <option value="fast">Fast Upscale (no model download)</option>
+      </select>
+    </div>
+    <div class="row" data-for="upscale">
+      <label>Size</label>
+      <select id="scale"><option value="2">2x</option><option value="3">3x</option><option value="4" selected>4x</option></select>
+    </div>
+    <div class="row" data-for="upscale">
+      <label>Save as</label>
+      <select id="upfmt"><option value="png" selected>PNG (best quality)</option><option value="jpg">JPG</option><option value="webp">WebP</option></select>
+    </div>
+    <div class="row" data-for="upscale convert">
+      <label>Enhance colours</label>
+      <select id="enhance">
+        <option value="none">Off</option>
+        <option value="natural" selected>Natural</option>
+        <option value="vivid">Vivid</option>
+        <option value="rich">Rich</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. Add images</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+      <strong>Choose images</strong>
+      <span>or drop them here. You can pick several at once.</span>
+    </label>
+    <button class="go" id="go" disabled>Start</button>
+    <div class="bar" id="barwrap" hidden><div id="bar"></div></div>
+    <p class="status" id="status"></p>
+  </section>
+
+  <section id="results"></section>
+  <button class="go alt" id="zipall" hidden>Download all (ZIP)</button>
+</main>
+
+<footer>
+  <p>&copy; FM Developer</p>
+  <p>Contact: <a href="tel:+8801871196902">+8801871196902</a></p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
