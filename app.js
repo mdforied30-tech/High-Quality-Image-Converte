@@ -7,6 +7,7 @@ const MAX_PX = COARSE ? 16e6 : 120e6;                         // safe canvas are
 const MAX_SIDE = COARSE ? 8192 : 16384;
 const TILE = COARSE ? 96 : 160, OVER = 12;                    // AI tile size + overlap (hides seams)
 const tick = () => new Promise((r) => setTimeout(r, 0));      // let the UI breathe
+const PRESET = { fhd: 1920, "2k": 2560, "3k": 3072, "4k": 3840 }; // long-side pixels
 const state = { tool: "jpg2jpeg", files: [], outputs: [], upscaler: {}, cancel: false, prog: () => {} };
 
 const GROUPS = { jpg2jpeg: "convert", png2jpg: "convert", jpg2png: "convert", jpg2webp: "convert", webp2jpg: "convert", svg: "vector", eps: "vector", upscale: "upscale" };
@@ -133,6 +134,12 @@ async function sharpen(canvas, amount = 0.5) {
 async function doConvert(file, { img }) {
   const [mime, ext] = CONVERT[state.tool], q = +$("#quality").value / 100;
   let c = drawFull(img, mime === "image/jpeg");
+  const T = +$("#res").value, long = Math.max(c.width, c.height); // optional HD/2K/3K/4K/8K output size
+  if (T > 0 && T !== long) {
+    const [tw, th, shrunk] = fitDims(Math.round((c.width * T) / long), Math.round((c.height * T) / long));
+    if (shrunk) status(`Resolution limited to ${Math.max(tw, th)}px by this device's memory.`);
+    const big = tw > c.width; c = resizeTo(c, tw, th); if (big) c = await sharpen(c, 0.4);
+  }
   state.prog(0.3); c = await enhance(c, $("#enhance").value); state.prog(0.7);
   const blob = await toBlob(c, mime, mime === "image/png" ? undefined : q);
   return { blob, name: `${baseName(file.name)}.${ext}`, w: c.width, h: c.height };
@@ -229,8 +236,8 @@ async function aiTiles(src, m, up) {
 async function doUpscale(file, { img }) {
   const sel = $("#scale").value, fmt = $("#upfmt").value, src = drawFull(img, false), W = src.width, H = src.height, long = Math.max(W, H);
   let tw, th;
-  if (sel === "4k" || sel === "fhd") {
-    const T = sel === "4k" ? 3840 : 1920;
+  const T = PRESET[sel];
+  if (T) {
     if (long >= T) throw new Error(`${file.name} is already ${T}px or larger. Choose 2x, 3x or 4x instead.`);
     tw = Math.round(W * T / long); th = Math.round(H * T / long);
   } else { tw = W * +sel; th = H * +sel; }
@@ -252,7 +259,7 @@ async function doUpscale(file, { img }) {
   if (jpg) { const f = makeCanvas(c.width, c.height), x = f.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, f.width, f.height); x.drawImage(c, 0, 0); c = f; }
   const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" }[fmt];
   const blob = await toBlob(c, mime, mime === "image/png" ? undefined : +$("#quality").value / 100);
-  const label = sel === "4k" ? "4K" : sel === "fhd" ? "FullHD" : sel + "x";
+  const label = PRESET[sel] ? (sel === "fhd" ? "FullHD" : sel.toUpperCase()) : sel + "x";
   return { blob, name: `${baseName(file.name)}_${label}.${fmt}`, w: c.width, h: c.height };
 }
 
