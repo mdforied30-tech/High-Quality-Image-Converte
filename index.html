@@ -66,7 +66,7 @@
     </div>
     <div class="row" data-for="upscale">
       <label>Size</label>
-      <select id="scale"><option value="2">2x</option><option value="3">3x</option><option value="4" selected>4x</option></select>
+      <select id="scale"><option value="2">2x</option><option value="3">3x</option><option value="4" selected>4x</option><option value="4k">4K (3840px)</option><option value="fhd">Full HD (1920px)</option></select>
     </div>
     <div class="row" data-for="upscale">
       <label>Save as</label>
@@ -92,6 +92,7 @@
       <span>or drop them here. You can pick several at once.</span>
     </label>
     <button class="go" id="go" disabled>Start</button>
+    <button class="go cancel" id="cancel" hidden>Cancel</button>
     <div class="bar" id="barwrap" hidden><div id="bar"></div></div>
     <p class="status" id="status"></p>
   </section>

@@ -24,6 +24,7 @@ input[type=range]{width:55%}
 .drop.over{border-color:var(--c);background:#22d3ee10}
 .go{width:100%;margin-top:14px;border:0;padding:15px;border-radius:14px;font-size:1.05rem;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--a),var(--b));cursor:pointer;box-shadow:0 8px 24px #6366f155}
 .go:disabled{opacity:.45;box-shadow:none}
+.go.cancel{background:#2a1f3d;box-shadow:none;border:1px solid #5b3b8a;margin-top:10px}
 .go.alt{background:linear-gradient(135deg,#0891b2,#22d3ee);color:#04222b}
 .bar{height:8px;background:#0f1530;border-radius:8px;margin-top:12px;overflow:hidden}
 #bar{height:100%;width:0;background:linear-gradient(90deg,var(--a),var(--c));transition:width .2s}
