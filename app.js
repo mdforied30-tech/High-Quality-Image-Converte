@@ -12,18 +12,23 @@ const CONVERT = {
 };
 
 /* ---------- UI ---------- */
+const PATCH = matchMedia("(pointer:coarse)").matches ? 64 : 128; // bigger tiles = faster on desktop
 function refreshOptions() {
   const g = GROUPS[state.tool];
   document.querySelectorAll(".row").forEach((r) => {
     r.hidden = !r.dataset.for.split(" ").includes(g);
   });
-  const lossless = state.tool === "jpg2png";
-  document.querySelectorAll('[data-for="convert"]').forEach((r) => (r.hidden = r.hidden || lossless));
+  const noQ = state.tool === "jpg2png" || (g === "upscale" && $("#upfmt").value === "png");
+  $("#quality").closest(".row").hidden = noQ || g === "vector";
 }
+function warmUp() { if (state.tool === "upscale" && $("#method").value === "ai") getUpscaler(+$("#scale").value).catch(() => {}); }
+$("#upfmt").addEventListener("change", refreshOptions);
+$("#scale").addEventListener("change", warmUp);
+$("#method").addEventListener("change", warmUp);
 $("#tools").addEventListener("click", (e) => {
   const b = e.target.closest(".chip"); if (!b) return;
   document.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
-  b.classList.add("active"); state.tool = b.dataset.tool; refreshOptions();
+  b.classList.add("active"); state.tool = b.dataset.tool; refreshOptions(); warmUp();
 });
 $("#quality").oninput = (e) => ($("#qv").textContent = e.target.value);
 $("#colors").oninput = (e) => ($("#cv").textContent = e.target.value);
@@ -52,7 +57,7 @@ function loadImage(file) {
 }
 function makeCanvas(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
 function drawFull(img, flatten) {
-  const c = makeCanvas(img.naturalWidth, img.naturalHeight); const x = c.getContext("2d", { willReadFrequently: true });
+  const c = makeCanvas(img.naturalWidth, img.naturalHeight); const x = c.getContext("2d");
   if (flatten) { x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); }
   x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0); return c;
 }
@@ -77,22 +82,18 @@ function enhance(canvas, mode) {
 }
 // Unsharp mask to bring back crisp edges after resizing
 function sharpen(canvas, amount = 0.5) {
-  const w = canvas.width, h = canvas.height, x = canvas.getContext("2d", { willReadFrequently: true });
-  const src = x.getImageData(0, 0, w, h), out = x.createImageData(w, h), s = src.data, o = out.data;
-  const k = [0, -1, 0, -1, 5, -1, 0, -1, 0];
-  for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) {
-    const i = (y * w + xx) * 4;
-    for (let c = 0; c < 3; c++) {
-      let v = 0;
-      for (let j = -1; j <= 1; j++) for (let m = -1; m <= 1; m++) {
-        const yy = Math.min(h - 1, Math.max(0, y + j)), xm = Math.min(w - 1, Math.max(0, xx + m));
-        v += s[(yy * w + xm) * 4 + c] * k[(j + 1) * 3 + m + 1];
-      }
-      o[i + c] = Math.min(255, Math.max(0, s[i + c] + (v - s[i + c]) * amount));
+  const w = canvas.width, h = canvas.height; if (w * h > 36e6) return canvas; // skip on huge images to stay smooth
+  const x = canvas.getContext("2d"), src = x.getImageData(0, 0, w, h), s = src.data;
+  const o = new Uint8ClampedArray(s), st = w * 4, k = 1 + 4 * amount, n = -amount; // fast 1-pass unsharp
+  for (let y = 1; y < h - 1; y++) {
+    let i = (y * w + 1) * 4;
+    for (let xx = 1; xx < w - 1; xx++, i += 4) {
+      o[i] = s[i] * k + n * (s[i - 4] + s[i + 4] + s[i - st] + s[i + st]);
+      o[i + 1] = s[i + 1] * k + n * (s[i - 3] + s[i + 5] + s[i + 1 - st] + s[i + 1 + st]);
+      o[i + 2] = s[i + 2] * k + n * (s[i - 2] + s[i + 6] + s[i + 2 - st] + s[i + 2 + st]);
     }
-    o[i + 3] = s[i + 3];
   }
-  x.putImageData(out, 0, 0); return canvas;
+  x.putImageData(new ImageData(o, w, h), 0, 0); return canvas;
 }
 
 /* ---------- Converters ---------- */
@@ -157,32 +158,36 @@ async function doEPS(file, { img }) {
 function fastUpscale(img, scale) {
   let cur = drawFull(img, false); const tw = img.naturalWidth * scale, th = img.naturalHeight * scale;
   while (cur.width < tw || cur.height < th) { // stepwise 1.5x keeps edges cleaner than one huge jump
-    const nw = Math.min(tw, Math.round(cur.width * 1.5)), nh = Math.min(th, Math.round(cur.height * 1.5));
+    const nw = Math.min(tw, Math.round(cur.width * 2)), nh = Math.min(th, Math.round(cur.height * 2));
     const n = makeCanvas(nw, nh), x = n.getContext("2d", { willReadFrequently: true });
     x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, nw, nh); cur = n;
   }
   return sharpen(cur, 0.55);
 }
-async function getUpscaler(scale) {
-  if (state.upscaler[scale]) return state.upscaler[scale];
-  status(`Loading AI model (${scale}x), first time only...`);
-  const [{ default: Upscaler }, { default: model }] = await Promise.all([
-    import("https://esm.sh/upscaler@1.0.0-beta.19"),
-    import(`https://esm.sh/@upscalerjs/esrgan-medium@1.0.0-beta.14/${scale}x`),
-  ]);
-  return (state.upscaler[scale] = new Upscaler({ model }));
+function getUpscaler(scale) { // cached promise: model loads once, warm-up and Start share it
+  if (!state.upscaler[scale]) {
+    state.upscaler[scale] = (async () => {
+      status(`Loading AI model (${scale}x), first time only...`);
+      const [{ default: Upscaler }, { default: model }] = await Promise.all([
+        import("https://esm.sh/upscaler@1.0.0-beta.19"),
+        import(`https://esm.sh/@upscalerjs/esrgan-medium@1.0.0-beta.14/${scale}x`),
+      ]);
+      const up = new Upscaler({ model }); status("AI model ready."); return up;
+    })().catch((e) => { delete state.upscaler[scale]; throw e; });
+  }
+  return state.upscaler[scale];
 }
 async function doUpscale(file, { img }) {
   const scale = +$("#scale").value, fmt = $("#upfmt").value; let c;
   if ($("#method").value === "ai") {
     try {
       // keep AI input moderate so phones do not run out of memory
-      const maxIn = 1000, s = Math.min(1, maxIn / Math.max(img.naturalWidth, img.naturalHeight));
+      const maxIn = scale >= 4 ? 900 : scale === 3 ? 1100 : 1400, s = Math.min(1, maxIn / Math.max(img.naturalWidth, img.naturalHeight));
       const src = makeCanvas(Math.round(img.naturalWidth * s), Math.round(img.naturalHeight * s));
       src.getContext("2d").drawImage(img, 0, 0, src.width, src.height);
       const up = await getUpscaler(scale > 4 ? 4 : scale);
       status("AI is enhancing detail, please wait...");
-      const out = await up.upscale(src, { patchSize: 64, padding: 4, progress: (p) => progress(Math.round(p * 100)) });
+      const out = await up.upscale(src, { patchSize: PATCH, padding: 6, progress: (p) => progress(Math.round(p * 100)) });
       const im = new Image(); im.src = out; await im.decode();
       c = makeCanvas(im.naturalWidth, im.naturalHeight); c.getContext("2d").drawImage(im, 0, 0);
     } catch (e) {
@@ -190,9 +195,9 @@ async function doUpscale(file, { img }) {
     }
   } else c = fastUpscale(img, scale);
   c = enhance(c, $("#enhance").value);
-  const mime = { png: "image/png", jpg: "image/jpeg", webp: "image/webp" }[fmt];
-  if (fmt === "jpg") { const f = makeCanvas(c.width, c.height), x = f.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, f.width, f.height); x.drawImage(c, 0, 0); c = f; }
-  const blob = await toBlob(c, mime, 0.98);
+  const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" }[fmt];
+  if (fmt === "jpg" || fmt === "jpeg") { const f = makeCanvas(c.width, c.height), x = f.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, f.width, f.height); x.drawImage(c, 0, 0); c = f; }
+  const blob = await toBlob(c, mime, mime === "image/png" ? undefined : +$("#quality").value / 100);
   return { blob, name: `${baseName(file.name)}_${scale}x.${fmt}`, w: c.width, h: c.height };
 }
 
